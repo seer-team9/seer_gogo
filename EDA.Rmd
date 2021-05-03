@@ -25,67 +25,88 @@ colnames(DF) <- c("Study.ID","Sex",                                    "Year.of.
 colnames(DF)
 ```
 
-# EDA
+# Exploratory Data Analysis
 
-## `Surgery Decision` vs `Surgery Implementation`
-
-In the categories of surgery decision, we can see that the top 2 frequent categories are *Surgery performed* and *Not recommended*. Besides, only the patients whose surgery decision is "surgery performed" actually took the surgery.
+There are seven kinds of cancer with different stages in this dataset. To simplify our research, we decide to choose only one kind of cancer to do the analysis. So, we firstly explore the top 10 cancers(including the stages) that the patients are most likely to give up the surgery. Giving up the surgery can more suggest that the patients are affected by some factors such as biases in the society.
 
 ```{r message=FALSE}
-df_surgery <- DF[,c("Surgery.Decision","Sex", "Race", "Insurance","SEER.Registry", "Surgery.Performed.", "Study.ID")] 
-df_surgery$Surgery.Decision <- revalue(df_surgery$Surgery.Decision,
+df_cancer_stage <- DF %>% 
+  dplyr::select(Site,AJCC.7.Stage,Surgery.Decision,Study.ID) %>% 
+  unite("Cancer_Stage",Site,AJCC.7.Stage,sep = "-") %>% 
+  dplyr::group_by(Cancer_Stage,Surgery.Decision) %>% 
+  dplyr::summarise(num = n()) %>% ungroup() %>% 
+  dplyr::arrange(desc(num))
+```
+
+```{r}
+df_cancer_stage$Surgery.Decision <- revalue(df_cancer_stage$Surgery.Decision, 
 c("Recommended, unknown if performed"= "Recommended",
-  "Recommended but not performed, patient refused"= "Recom & refused",
-  "Recommended but not performed, unknown reason"= "Recom & not performed",
-  "Not recommended, contraindicated due to other cond; autopsy only (1973-2002)"= "Not recom & contraindicated",
-  "Not performed, patient died prior to recommended surgery"= "Not performed & died",
-  "Unknown; death certificate; or autopsy only (2003+)"= "Unknown"))
+  
+"Recommended but not performed, patient refused"= "Recom & refused",
 
+"Recommended but not performed, unknown reason"= "Recom & not performed",
 
-df_surgery$Race <- revalue(df_surgery$Race,
-c("Asian or Pacific Islander"="Asian/PI",
-  "American Indian/Alaska Native"="Indigen"))
+"Not recommended, contraindicated due to other cond; autopsy only (1973-2002)"= "Not recom & contraindicated",
+
+"Not performed, patient died prior to recommended surgery"= "Not performed & died",
+
+"Unknown; death certificate; or autopsy only (2003+)"= "Unknown"))
+```
+
+The plot below shows that, even given recommendation, some patients with oral cavity cancer in nearly all the stages, even the early stage, have given up the surgery. So we choose oral cavity cancer as our research direction.
+
+```{r}
+# Top 10 Giving-Up-Surgery Cancer
+df_cancer_stage %>% 
+  dplyr::filter(Surgery.Decision %in% c("Recommended","Recom & refused","Recom & not performed")) %>% 
+  mutate(percent = num/sum(num)) %>% 
+  mutate(Cancer_Stage = reorder(Cancer_Stage,percent)) %>% 
+  top_n(10,wt = percent) %>% 
+  ggplot() + 
+  geom_bar(aes(x = Cancer_Stage,y = percent, fill = Surgery.Decision),stat = "identity") + 
+  labs(title = "Top 10 Cancers that are Most Likely to Giving Up Surgery", 
+       x = "Cancer with Stage",y = "Percentage",
+       fill = "Surgery Decision") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1))+
+  scale_fill_manual(values = c("orange", "royalblue","limegreen"))+
+  coord_flip()
 ```
 
 
-```{r message=FALSE}
-# Surgery Implementation by Surgery Decision
-df_surgery %>% select(Surgery.Decision,Surgery.Performed.,Study.ID) %>% 
-    dplyr::group_by(Surgery.Decision,Surgery.Performed.) %>% 
-    dplyr::summarise(num = n()) %>% 
-    ungroup() %>% 
-    mutate(percent = num/sum(num)) %>% 
-    ggplot() +
-    geom_bar(aes(x = Surgery.Decision,y = percent,fill = Surgery.Performed.),stat = "identity") +
-    labs(title = "Surgery Implementation by Surgery Decision",x = NULL, y = "Percentage") + 
-    scale_y_continuous(labels = scales::percent_format(accuracy = 1))+
-    scale_fill_manual("Surgery Implementation", values = c("grey55", "darkred")) + coord_flip()
+```{r eval=FALSE}
+df_oral <- DF %>% dplyr::filter(Site == "Oral Cavity")
 ```
 
-# Environment Attributes by State
+## Features vs `Surgery Performed` 
 
-  Household Income, Poverty, Unemployement, Language Isolation and Education are important attributes of the respondents' `SEER.Registry`, so we would like to explore their distribution by states.
+To begin with, we would like to take a look at the condition of surgery implementation.
+
+**State**
+
+### Environment Attributes by State
+
+  Household Income, Poverty, Unemployment, Language Isolation and Education are all recorded on county level, which can also be regarded as important attributes of the respondents' `SEER.Registry`, so we would like to explore their distribution by states.
   
-  For Poverty, the state of Georgia has the highest proverty rate, over 15% in average. For Unemployment, the unemployment rates are quite similar across those 4 states. For Household Income, the state of Georgia has the lowest household income in average. For Language Isolation, the state of Alaska has the lowest language isolation rate, while the state of California has the highest.
+  For Poverty, the state of Georgia has the highest poverty rate, over 15% in average. For Unemployment, the unemployment rates are quite similar across those 4 states. For Household Income, the state of Georgia has the lowest household income in average. For Language Isolation, the state of Alaska has the lowest language isolation rate, while the state of California has the highest.
   
 
 ```{r message=FALSE}
-g1 <- DF %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Ave = mean(X..Persons.Below.Poverty)) %>% 
+g1 <- df_oral %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Ave = mean(X..Persons.Below.Poverty)) %>% 
   ggplot() +
   geom_bar(aes(x = SEER.Registry, y = Ave), stat = "identity") +
   labs(title = "Below Poverty Percentage vs State", x = "State", y = "Below Poverty Percentage")
 
-g2 <- DF %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Ave = mean(X..Unemployed.ACS.2013.2017)) %>% 
+g2 <- df_oral %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Ave = mean(X..Unemployed.ACS.2013.2017)) %>% 
   ggplot() +
   geom_bar(aes(x = SEER.Registry, y = Ave), stat = "identity") +
   labs(title = "Unemployed Percentage vs State", x = "State", y = "Unemployed Percentage")
 
-g3 <- DF %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Ave = mean(Median.Household.Income)) %>% 
+g3 <- df_oral %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Ave = mean(Median.Household.Income)) %>% 
   ggplot() +
   geom_bar(aes(x = SEER.Registry, y = Ave), stat = "identity") +
   labs(title = "Median Household Income vs State", x = "State", y = "Median Household Income")
 
-g4 <- DF %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Ave = mean(X..Language.isolation.ACS.2013.2017..households.)) %>% 
+g4 <- df_oral %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Ave = mean(X..Language.isolation.ACS.2013.2017..households.)) %>% 
   ggplot() +
   geom_bar(aes(x = SEER.Registry, y = Ave), stat = "identity") +
   labs(title = "Language Isolation Percentage vs State", x = "State", y = "Language Isolation Percentage")
@@ -96,9 +117,9 @@ gridExtra::grid.arrange(g1, g2, g3, g4, nrow = 2)
 ```
 
 ```{r message=FALSE}
-edu_9 <- DF %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Avg = mean(X...9th.Grade.Education))
-edu_h <- DF %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Avg = mean(X...High.School.Education))
-edu_b <- DF %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Avg = mean(X...Bachelors.Education))
+edu_9 <- df_oral %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Avg = mean(X...9th.Grade.Education))
+edu_h <- df_oral %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Avg = mean(X...High.School.Education))
+edu_b <- df_oral %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Avg = mean(X...Bachelors.Education))
 edu_9$Avg1 <- edu_h$Avg
 edu_9$Avg2 <- edu_b$Avg
 
@@ -110,7 +131,6 @@ state <- c(rep("Alaska", 3), rep("California", 3), rep("Connecticut", 3), rep("G
 edu <- rep(c("9th Grade", "High School", "Bachelor"), 4)
 values <- c(df_state_edu$values[1], df_state_edu$values[5], df_state_edu$values[9], df_state_edu$values[2], df_state_edu$values[6], df_state_edu$values[10], df_state_edu$values[3], df_state_edu$values[7], df_state_edu$values[11], df_state_edu$values[4], df_state_edu$values[8], df$values[12])
 ```
-
 
   For Education, the state of California has the highest proportion of respondents are educated below 9th Grade and the highest proportion of repondents are educated below High School. Meanwhile, the state of Connecticut has the highest proportion of respondents are educated below Bechelor.
   
@@ -124,18 +144,11 @@ df_state_edu2 %>%
   
 ```
 
-
-## Feature: `Surgery Performed` 
-
-  To begin with, we would like to take a look at the condition of surgery implementation.
-
-**State**
-
-  By examining surgery implemetation condition by state, we found that California has the largest percentage of patient to take the surgery among the 4 states.
+  By examining surgery implementation condition by state, we found that California has the largest population of patients researched in the data. While Alaska and Connecticut have the largest proportion of patients who have performed the surgery.
   
 ```{r message=FALSE}
 # Registry State vs. Whether the surgery implemented
-p1 <- ggplot(DF, aes(x = SEER.Registry, fill = Surgery.Performed.) ) +  
+p1 <- ggplot(df_oral, aes(x = SEER.Registry, fill = Surgery.Performed.) ) +  
     geom_bar( aes(y = ..count../sum(..count..) ) ) +
     labs(title = "Surgery Implementation by State",
          x = "Registered State",
@@ -143,7 +156,7 @@ p1 <- ggplot(DF, aes(x = SEER.Registry, fill = Surgery.Performed.) ) +
     scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
     scale_fill_manual("Surgery Implementation", values = c("grey55", "darkred") ) 
 
-p2 <- DF %>% select(SEER.Registry, Study.ID, Surgery.Performed.) %>% 
+p2 <- df_oral %>% select(SEER.Registry, Study.ID, Surgery.Performed.) %>% 
   dplyr::group_by(SEER.Registry, Surgery.Performed.) %>% 
   dplyr::summarise(num = n()) %>% 
   ungroup() %>% 
@@ -161,11 +174,12 @@ gridExtra::grid.arrange(p1,p2)
 ```
 
 **Race & Gender**
+
   Before looking at the surgery condition by race and gender, we would like to take a look at the distribution of race by gender. The plot above shows that, more than 60% of observations are white people, and more than 50% of observations are white male, which indicates that there would be an imbalance problem in the data.
     
 ```{r message=FALSE, warning=FALSE}
 # Distribution of race by gender
-DF %>% select(Race,Sex,Study.ID) %>% 
+df_oral %>% select(Race,Sex,Study.ID) %>% 
     dplyr::group_by(Race,Sex) %>% 
     dplyr::summarise(num = n()) %>% 
     ungroup() %>% 
@@ -184,7 +198,7 @@ DF %>% select(Race,Sex,Study.ID) %>%
 ```{r message=FALSE}
 # Race vs. Whether the surgery implemented
 
-p3 <- DF %>% select(Race, Study.ID, Surgery.Performed.) %>% 
+p3 <- df_oral %>% select(Race, Study.ID, Surgery.Performed.) %>% 
   dplyr::group_by(Race, Surgery.Performed.) %>% 
   dplyr::summarise(num = n()) %>% 
   ungroup() %>% 
@@ -202,7 +216,7 @@ p3 <- DF %>% select(Race, Study.ID, Surgery.Performed.) %>%
 
 # Gender vs. Whether the surgery implemented
 
-p4 <- DF %>% select(Sex, Study.ID, Surgery.Performed.) %>% 
+p4 <- df_oral %>% select(Sex, Study.ID, Surgery.Performed.) %>% 
   dplyr::group_by(Sex, Surgery.Performed.) %>% 
   dplyr::summarise(num = n()) %>% 
   ungroup() %>% 
@@ -227,17 +241,17 @@ gridExtra::grid.arrange(p3,p4)
     
 ```{r}
 # Gender cross Race  vs.  Whether the surgery implemented
-DF2 <- DF[,c("Sex","Race", "Surgery.Performed.")] 
-DF2$Sex <- revalue(DF2$Sex, c("Female"="F"))
-DF2$Sex <- revalue(DF2$Sex,c("Male"="M"))
-DF2$Race <- revalue(DF2$Race,c("Asian or Pacific Islander"="Asian/PI"))
-DF2$Race <- revalue(DF2$Race,c("American Indian/Alaska Native"="Indigen"))
-DF2 <-  unite(DF2, "Sex_Race", Sex, Race, sep = "_", remove = FALSE)
+df2 <- df_oral[,c("Sex","Race", "Surgery.Performed.")] 
+df2$Sex <- revalue(df2$Sex, c("Female"="F"))
+df2$Sex <- revalue(df2$Sex,c("Male"="M"))
+df2$Race <- revalue(df2$Race,c("Asian or Pacific Islander"="Asian/PI"))
+df2$Race <- revalue(df2$Race,c("American Indian/Alaska Native"="Indigen"))
+df2 <-  unite(df2, "Sex_Race", Sex, Race, sep = "_", remove = FALSE)
 ```
 
 
 ```{r}
-ggplot(DF2, aes(x = Sex_Race, fill = Surgery.Performed.) ) +  
+ggplot(df2, aes(x = Sex_Race, fill = Surgery.Performed.) ) +  
     geom_bar( aes(y = ..count../sum(..count..) ) ) +
     labs(title = "Surgery Implementation by Gender_Race",
          x = "Gender_Race",
@@ -248,7 +262,7 @@ ggplot(DF2, aes(x = Sex_Race, fill = Surgery.Performed.) ) +
 
 **Insurance**
 ```{r message=FALSE, warning=FALSE}
-p5 <- DF %>% select(Insurance,Surgery.Performed.,Study.ID) %>% 
+p5 <- df_oral %>% select(Insurance,Surgery.Performed.,Study.ID) %>% 
     dplyr::group_by(Insurance,Surgery.Performed.) %>% 
     dplyr::summarise(num = n()) %>% 
     ungroup() %>% 
@@ -259,7 +273,7 @@ p5 <- DF %>% select(Insurance,Surgery.Performed.,Study.ID) %>%
     scale_y_continuous(labels = scales::percent_format(accuracy = 1))+
     scale_fill_manual("Surgery Implementation", values = c("grey55", "darkred")) + coord_flip()
 
-p6 <- DF %>% select(Insurance,Surgery.Performed.,Study.ID) %>% 
+p6 <- df_oral %>% select(Insurance,Surgery.Performed.,Study.ID) %>% 
     dplyr::group_by(Insurance,Surgery.Performed.) %>% 
     dplyr::summarise(num = n()) %>% 
     ungroup() %>% 
@@ -279,7 +293,7 @@ gridExtra::grid.arrange(p5,p6)
 **Trend**
     For the trend of amount of performed surgery, we can see that as time goes by, there is an upper trend. 
 ```{r message=FALSE, warning=FALSE}
-DF %>% 
+df_oral %>% 
     select(Year.of.Diagnosis,Surgery.Performed.,Study.ID) %>% 
     mutate(Year.of.Diagnosis = as.character(Year.of.Diagnosis)) %>% 
     dplyr::group_by(Year.of.Diagnosis,Surgery.Performed.) %>% 
@@ -295,7 +309,7 @@ DF %>%
 ```
 
 ```{r message=FALSE, warning=FALSE}
-ggplot(data=DF, aes(x=Age.at.Diagnosis, group=Surgery.Performed., fill=Surgery.Performed.)) +
+ggplot(data=df_oral, aes(x=Age.at.Diagnosis, group=Surgery.Performed., fill=Surgery.Performed.)) +
     geom_density(adjust=1.5, alpha=.4) + 
   labs(title = "Surgery Performed Status by Age",
        x = "Age at Diagnosis",y = "Density",
@@ -303,58 +317,14 @@ ggplot(data=DF, aes(x=Age.at.Diagnosis, group=Surgery.Performed., fill=Surgery.P
 ```
 
 ```{r message=FALSE, warning=FALSE}
-ggplot(data=DF, aes(x=Size, group=Surgery.Performed., fill=Surgery.Performed.)) +
+ggplot(data=df_oral, aes(x=Size, group=Surgery.Performed., fill=Surgery.Performed.)) +
     geom_density(adjust=1.5, alpha=.4) + 
   labs(title = "Surgery Performed Status by Tumor Size",
        x = "Tumor Size (mm)",y = "Density",
        fill = "Surgery Performed")
 ```
 
-## Feature: `Surgery Decision` 
 
-```{r message=FALSE, warning=FALSE}
-df_cancer_stage <- DF %>% 
-  dplyr::select(Site,AJCC.7.Stage,Surgery.Decision,Study.ID) %>% 
-  unite("Cancer_Stage",Site,AJCC.7.Stage,sep = "-") %>% 
-  dplyr::group_by(Cancer_Stage,Surgery.Decision) %>% 
-  dplyr::summarise(num = n()) %>% ungroup() %>% 
-  dplyr::arrange(desc(num))
-```
-
-
-```{r}
-df_cancer_stage$Surgery.Decision <- revalue(df_cancer_stage$Surgery.Decision, 
-c("Recommended, unknown if performed"= "Recommended",
-  
-"Recommended but not performed, patient refused"= "Recom & refused",
-
-"Recommended but not performed, unknown reason"= "Recom & not performed",
-
-"Not recommended, contraindicated due to other cond; autopsy only (1973-2002)"= "Not recom & contraindicated",
-
-"Not performed, patient died prior to recommended surgery"= "Not performed & died",
-
-"Unknown; death certificate; or autopsy only (2003+)"= "Unknown"))
-```
-
-  The plot below shows that, even given recommendation, more than 20% of patients with cancer in Oropharynx with stage IVA are likely to give up surgery.
-
-```{r}
-# Top 10 Giving-Up-Surgery Cancer
-df_cancer_stage %>% 
-  dplyr::filter(Surgery.Decision %in% c("Recommended","Recom & refused","Recom & not performed")) %>% 
-  mutate(percent = num/sum(num)) %>% 
-  mutate(Cancer_Stage = reorder(Cancer_Stage,percent)) %>% 
-  top_n(10,wt = percent) %>% 
-  ggplot() + 
-  geom_bar(aes(x = Cancer_Stage,y = percent, fill = Surgery.Decision),stat = "identity") + 
-  labs(title = "Top 10 Cancers that are Most Likely to Giving Up Surgery", 
-       x = "Cancer with Stage",y = "Percentage",
-       fill = "Surgery Decision") +
-  scale_y_continuous(labels = scales::percent_format(accuracy = 1))+
-  scale_fill_manual(values = c("orange", "royalblue","limegreen"))+
-  coord_flip()
-```
 
 
 
