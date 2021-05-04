@@ -27,7 +27,7 @@ colnames(DF)
 
 # Exploratory Data Analysis
 
-There are seven kinds of cancer with different stages in this dataset. To simplify our research, we decide to choose only one kind of cancer to do the analysis. So, we firstly explore the top 10 cancers(including the stages) that the patients are most likely to give up the surgery. Giving up the surgery can more suggest that the patients are affected by some factors such as biases in the society.
+  There are seven kinds of cancer with different stages in this dataset. To simplify our research, we decide to choose only one kind of cancer to do the analysis. So, we firstly explore the top 10 cancers(including the stages) that the patients are most likely to give up the surgery. Giving up the surgery can more suggest that the patients are affected by some factors such as biases in the society.
 
 ```{r message=FALSE}
 df_cancer_stage <- DF %>% 
@@ -53,7 +53,7 @@ c("Recommended, unknown if performed"= "Recommended",
 "Unknown; death certificate; or autopsy only (2003+)"= "Unknown"))
 ```
 
-The plot below shows that, even given recommendation, some patients with oral cavity cancer in nearly all the stages, even the early stage, have given up the surgery. So we choose oral cavity cancer as our research direction.
+  The plot below shows that, even given recommendation, some patients with oral cavity cancer in nearly all the stages, even the early stage, have given up the surgery. So we choose oral cavity cancer as our research direction.
 
 ```{r}
 # Top 10 Giving-Up-Surgery Cancer
@@ -79,7 +79,7 @@ df_oral <- DF %>% dplyr::filter(Site == "Oral Cavity")
 
 ## Features vs `Surgery Performed` 
 
-To begin with, we would like to take a look at the condition of surgery implementation.
+  To begin with, we would like to take a look at the condition of surgery implementation.
 
 **State**
 
@@ -175,7 +175,7 @@ gridExtra::grid.arrange(p1,p2)
 
 **Race & Gender**
 
-  Before looking at the surgery condition by race and gender, we would like to take a look at the distribution of race by gender. The plot above shows that, more than 60% of observations are white people, and more than 50% of observations are white male, which indicates that there would be an imbalance problem in the data.
+  Before looking at the surgery condition by race and gender, we would like to take a look at the distribution of race by gender. The plot above shows that, more than 60% of observations are white people, and more than 40% of observations are white male, which indicates that there would be an imbalance problem in the data.
     
 ```{r message=FALSE, warning=FALSE}
 # Distribution of race by gender
@@ -193,7 +193,7 @@ df_oral %>% select(Race,Sex,Study.ID) %>%
     theme(axis.text.x = element_text(angle = 10, hjust = 0.5, vjust = 0.5))
 ```
     
-  For surgery condition, the plot below shows that the proportion of white people who take the surgery and male who take he surgery is the largest.
+  For surgery condition, the plot below shows that Asian of Pacific Islander has the largest proportion of performing the surgery while the Black has the smallest one. Female and Male has almost the same proportion to accept the surgery, which seems that there is no gender biases.
     
 ```{r message=FALSE}
 # Race vs. Whether the surgery implemented
@@ -261,6 +261,9 @@ ggplot(df2, aes(x = Sex_Race, fill = Surgery.Performed.) ) +
 ```
 
 **Insurance**
+
+  Besides of the demographic features, we also concern about the impact of social biases like insurance on whether to perform the surgery or not. From below chart, we can see that the large majority of repondents are insured and insured people are most likely to perform the surgery.
+
 ```{r message=FALSE, warning=FALSE}
 p5 <- df_oral %>% select(Insurance,Surgery.Performed.,Study.ID) %>% 
     dplyr::group_by(Insurance,Surgery.Performed.) %>% 
@@ -290,8 +293,12 @@ p6 <- df_oral %>% select(Insurance,Surgery.Performed.,Study.ID) %>%
 gridExtra::grid.arrange(p5,p6)
 ```
 
-**Trend**
-    For the trend of amount of performed surgery, we can see that as time goes by, there is an upper trend. 
+## Trend
+
+  After exploring the relationship between all kinds of features and the surgery implementation situation, we want to research the change of surgery implementation on time series.
+  
+  From the below plot, for the trend of amount of performed surgery, we can see that as time goes by, there is an upper trend. 
+    
 ```{r message=FALSE, warning=FALSE}
 df_oral %>% 
     select(Year.of.Diagnosis,Surgery.Performed.,Study.ID) %>% 
