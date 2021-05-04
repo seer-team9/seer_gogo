@@ -2,7 +2,9 @@
 title: "679 Final Project"
 author: "Team 9"
 date: "4/12/2021"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -12,6 +14,7 @@ library(reshape2)
 library(tidyr)
 library(viridis)
 library(psych)
+library(rstanarm)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -131,7 +134,7 @@ df_cancer_radi %>%
 
 
 
-```{r eval=FALSE}
+```{r echo=FALSE}
 # Data of Oral Cavity
 df_oral <- DF %>% dplyr::filter(Site == "Oral Cavity")
 ```
@@ -188,7 +191,7 @@ colnames(df_state_edu) <- c("State", "values", "education")
 
 state <- c(rep("Alaska", 3), rep("California", 3), rep("Connecticut", 3), rep("Georgia", 3))
 edu <- rep(c("9th Grade", "High School", "Bachelor"), 4)
-values <- c(df_state_edu$values[1], df_state_edu$values[5], df_state_edu$values[9], df_state_edu$values[2], df_state_edu$values[6], df_state_edu$values[10], df_state_edu$values[3], df_state_edu$values[7], df_state_edu$values[11], df_state_edu$values[4], df_state_edu$values[8], df_state_edu$values[12])
+values <- c(2.66, 7.61, 28.99, 9.242076, 16.874751, 32.903706, 4.116577, 9.667285, 38.037514, 5.239321, 14.709081, 27.351167)
 ```
 
   For Education, the state of California has the highest proportion of respondents are educated below 9th Grade and the highest proportion of repondents are educated below High School. Meanwhile, the state of Connecticut has the highest proportion of respondents are educated below Bechelor.
@@ -492,5 +495,11 @@ oral_cancer <-
 # write.csv(oral_cancer,"oral_cancer_data.csv",row.names = F)
 ```
 
+
+# Modeling
+
+```{r}
+
+```
 
 
