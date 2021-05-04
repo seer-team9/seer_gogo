@@ -327,8 +327,88 @@ df_oral %>%
 ```
 
 
+## Data Processing
+```{r message=FALSE, warning=FALSE}
+
+#Combine variables of Surgery Performed, Chemotherapy and Radiation into one varibale called Treatment
+DF$rad = ifelse(DF$Radiation =="No radiation and/or cancer-directed surgery", "No", "Yes")
+DF$Treatment = rep(NA,nrow(DF))
+
+for (i in 1:nrow(DF)){
+  
+  if(DF$Surgery.Performed.[i] == "Yes" && DF$Chemotherapy[i] == "Yes" && DF$rad[i] == "Yes"){
+    DF$Treatment[i] = "S+C+R"
+  }
+  else if(DF$Surgery.Performed.[i] == "Yes" && DF$Chemotherapy[i] == "Yes" && DF$rad[i] == "No"){
+    DF$Treatment[i] = "S+C"
+  }
+  else if(DF$Surgery.Performed.[i] == "Yes" && DF$Chemotherapy[i] == "No/Unknown" && DF$rad[i] == "Yes"){
+    DF$Treatment[i] = "S+R"
+  }
+  else if(DF$Surgery.Performed.[i] == "Yes" && DF$Chemotherapy[i] == "No/Unknown" && DF$rad[i] == "No"){
+    DF$Treatment[i] = "S"
+  }
+  else if(DF$Surgery.Performed.[i] == "No" && DF$Chemotherapy[i] == "No/Unknown" && DF$rad[i] == "No"){
+    DF$Treatment[i] = "No treatment"
+  }
+  else if(DF$Surgery.Performed.[i] == "No" && DF$Chemotherapy[i] == "No/Unknown" && DF$rad[i] == "Yes"){
+    DF$Treatment[i] = "R"
+  }
+  else if(DF$Surgery.Performed.[i] == "No" && DF$Chemotherapy[i] == "Yes" && DF$rad[i] == "No"){
+    DF$Treatment[i] = "C"
+  }
+  else if(DF$Surgery.Performed.[i] == "No" && DF$Chemotherapy[i] == "Yes" && DF$rad[i] == "Yes"){
+    DF$Treatment[i] = "C+R"
+  }
+  
+}
+```
+
+```{r message=FALSE, warning=FALSE}
+#Create the canser stage for oral cavity
+df_recommend <- DF %>% 
+  select(Site,Size,AJCC.7.Stage,Study.ID,Treatment) %>%
+  dplyr::filter(Site=="Oral Cavity") %>%
+  unite("Cancer_Stage",Site,AJCC.7.Stage,sep = "-") %>% 
+  mutate(Cancer_Stage = factor(Cancer_Stage,levels = c("Oral Cavity-I","Oral Cavity-II","Oral Cavity-III","Oral Cavity-IVA","Oral Cavity-IVB","Oral Cavity-IVC","Oral Cavity-IVNOS")))
+```
+
+```{r message=FALSE, warning=FALSE}
+#Create the variable True_Therapy that shows the therapy combinations for patients based on the NCCN guideline.
+df_recommend$True_Therapy <- rep(NA,nrow(df_recommend))
+for(i in 1:nrow(df_recommend)){
+  if(df_recommend$Cancer_Stage[i]=="Oral Cavity-I"){
+    df_recommend$True_Therapy[i]="S+R"
+  }
+  else if(df_recommend$Cancer_Stage[i]=="Oral Cavity-II"){
+    df_recommend$True_Therapy[i]="S+R"
+  }
+  else{
+    df_recommend$True_Therapy[i]="S"
+  }
+}
+```
 
 
+```{r message=FALSE, warning=FALSE}
+#Create the variable Match with binnary outcomes.
+df_recommend$Match = ifelse(df_recommend$Treatment == df_recommend$True_Therapy, 1,0)
+for(i in 1:nrow(df_recommend)){
+  if(df_recommend$Treatment[i]=="S+R" && df_recommend$True_Therapy[i] == "S"){
+    df_recommend$Match[i] = 1
+  }
+  else if(df_recommend$Treatment[i]=="S+C+R" && df_recommend$True_Therapy[i] == "S"){
+    df_recommend$Match[i] = 1
+  }
+  else if(df_recommend$Treatment[i]=="S+C+R" && df_recommend$True_Therapy[i] == "S+R"){
+    df_recommend$Match[i] = 1
+  }
+}
+```
+
+```{r message=FALSE, warning=FALSE}
+
+```
 
 
 
