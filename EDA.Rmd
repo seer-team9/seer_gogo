@@ -27,9 +27,13 @@ colnames(DF)
 
 # Exploratory Data Analysis
 
-  There are seven kinds of cancer with different stages in this dataset. To simplify our research, we decide to choose only one kind of cancer to do the analysis. So, we firstly explore the top 10 cancers(including the stages) that the patients are most likely to give up the surgery. Giving up the surgery can more suggest that the patients are affected by some factors such as biases in the society.
+## Cancer Selection
+
+  There are seven kinds of cancer with different stages in this dataset. To simplify our research, we decide to choose only one kind of cancer to do the analysis. 
+  So, we firstly explore the top 10 cancers(including the stages) that the patients are most likely to give up the surgery. Giving up the surgery can suggest more that the patients are affected by some factors such as biases in the society.
 
 ```{r message=FALSE}
+# Surgery.Decision
 df_cancer_stage <- DF %>% 
   dplyr::select(Site,AJCC.7.Stage,Surgery.Decision,Study.ID) %>% 
   unite("Cancer_Stage",Site,AJCC.7.Stage,sep = "-") %>% 
@@ -53,7 +57,8 @@ c("Recommended, unknown if performed"= "Recommended",
 "Unknown; death certificate; or autopsy only (2003+)"= "Unknown"))
 ```
 
-  The plot below shows that, even given recommendation, some patients with oral cavity cancer in nearly all the stages, even the early stage, have given up the surgery. So we choose oral cavity cancer as our research direction.
+  The plot below shows that, even given recommendation, some patients with oral cavity cancer in nearly all the stages, even the early stage, have given up the surgery. 
+  Combining the infomation given by the status of chemo and radiation therapy, we would like to choose oral cavity cancer as our research direction.
 
 ```{r}
 # Top 10 Giving-Up-Surgery Cancer
@@ -73,7 +78,61 @@ df_cancer_stage %>%
 ```
 
 
+```{r message=FALSE, warning=FALSE}
+# Chemo
+df_cancer_chemo <- DF %>% 
+  dplyr::select(Site,AJCC.7.Stage,Chemotherapy,Study.ID) %>% 
+  unite("Cancer_Stage",Site,AJCC.7.Stage,sep = "-") %>% 
+  dplyr::group_by(Cancer_Stage,Chemotherapy) %>% 
+  dplyr::summarise(num = n()) %>% ungroup() %>% 
+  dplyr::arrange(desc(num))
+```
+
+```{r}
+df_cancer_chemo %>% 
+  mutate(percent = num/sum(num)) %>% 
+  mutate(Cancer_Stage = reorder(Cancer_Stage,percent)) %>% 
+  top_n(10,wt = percent) %>% 
+  ggplot() + 
+  geom_bar(aes(x = Cancer_Stage,y = percent, fill = Chemotherapy),stat = "identity") + 
+  labs(title = "Top 10 Cancers by Chemo Status", 
+       x = "Cancer with Stage",y = "Percentage",
+       fill = "Chemo Status") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1))+
+  scale_fill_manual(values = c("#003399","#00CC33"))+
+  coord_flip()
+```
+
+```{r message=FALSE, warning=FALSE}
+# Radiation
+df_cancer_radi <- DF %>% 
+  dplyr::select(Site,AJCC.7.Stage,Radiation,Study.ID) %>% 
+  unite("Cancer_Stage",Site,AJCC.7.Stage,sep = "-") %>% 
+  dplyr::group_by(Cancer_Stage,Radiation) %>% 
+  dplyr::summarise(num = n()) %>% ungroup() %>% 
+  dplyr::arrange(desc(num))
+```
+
+```{r}
+df_cancer_radi %>% 
+  mutate(percent = num/sum(num)) %>% 
+  mutate(Cancer_Stage = reorder(Cancer_Stage,percent)) %>% 
+  top_n(10,wt = percent) %>% 
+  ggplot() + 
+  geom_bar(aes(x = Cancer_Stage,y = percent, fill = Radiation),stat = "identity") + 
+  labs(title = "Top 10 Cancers by Radiation Status", 
+       x = "Cancer with Stage",y = "Percentage",
+       fill = "Radiation Status") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1))+
+  scale_fill_manual(values = c("#99CCCC","#6633FF"))+
+  theme(legend.position = "bottom", legend.direction = "horizontal")+
+  coord_flip()
+```
+
+
+
 ```{r eval=FALSE}
+# Data of Oral Cavity
 df_oral <- DF %>% dplyr::filter(Site == "Oral Cavity")
 ```
 
@@ -129,7 +188,7 @@ colnames(df_state_edu) <- c("State", "values", "education")
 
 state <- c(rep("Alaska", 3), rep("California", 3), rep("Connecticut", 3), rep("Georgia", 3))
 edu <- rep(c("9th Grade", "High School", "Bachelor"), 4)
-values <- c(df_state_edu$values[1], df_state_edu$values[5], df_state_edu$values[9], df_state_edu$values[2], df_state_edu$values[6], df_state_edu$values[10], df_state_edu$values[3], df_state_edu$values[7], df_state_edu$values[11], df_state_edu$values[4], df_state_edu$values[8], df$values[12])
+values <- c(df_state_edu$values[1], df_state_edu$values[5], df_state_edu$values[9], df_state_edu$values[2], df_state_edu$values[6], df_state_edu$values[10], df_state_edu$values[3], df_state_edu$values[7], df_state_edu$values[11], df_state_edu$values[4], df_state_edu$values[8], df_state_edu$values[12])
 ```
 
   For Education, the state of California has the highest proportion of respondents are educated below 9th Grade and the highest proportion of repondents are educated below High School. Meanwhile, the state of Connecticut has the highest proportion of respondents are educated below Bechelor.
@@ -229,9 +288,7 @@ p4 <- df_oral %>% select(Sex, Study.ID, Surgery.Performed.) %>%
          y = "Percentage") +
     scale_fill_manual("Surgery Implementation", values = c("grey55", "darkred")) +
     scale_y_continuous(labels = scales::percent_format(accuracy = 1))
-```
 
-```{r}
 gridExtra::grid.arrange(p3,p4)
 ```
 
@@ -298,9 +355,6 @@ p6 <- df_oral %>% select(Insurance,Surgery.Performed.,Study.ID) %>%
     scale_y_continuous(labels = scales::percent_format(accuracy = 1))+
     scale_fill_manual("Surgery Implementation", values = c("grey55", "darkred")) + coord_flip()
 
-```
-
-```{r}
 gridExtra::grid.arrange(p5,p6)
 ```
 
@@ -327,87 +381,115 @@ df_oral %>%
 ```
 
 
-## Data Processing
-```{r message=FALSE, warning=FALSE}
+# Feature Engineering
 
-#Combine variables of Surgery Performed, Chemotherapy and Radiation into one varibale called Treatment
-DF$rad = ifelse(DF$Radiation =="No radiation and/or cancer-directed surgery", "No", "Yes")
-DF$Treatment = rep(NA,nrow(DF))
+## Feature Establishment
 
-for (i in 1:nrow(DF)){
+  The columns `Surgery.Performed.`,`Radiation` and `Chemotherapy` contain information of the actual therapy that the patients have taken. It would be more informative to combine these 3 columns together to reflect patients' treatment as a whole. Hence, we create a column `True_Therapy` to get the aggregated information.
   
-  if(DF$Surgery.Performed.[i] == "Yes" && DF$Chemotherapy[i] == "Yes" && DF$rad[i] == "Yes"){
-    DF$Treatment[i] = "S+C+R"
+```{r message=FALSE, warning=FALSE}
+DF_pre <- df_oral
+
+# Combine variables of Surgery Performed, Chemotherapy and Radiation into one varibale called True_Therapy
+
+DF_pre$rad = ifelse(DF_pre$Radiation =="No radiation and/or cancer-directed surgery", "No", "Yes")
+DF_pre$True_Therapy = rep(NA,nrow(DF_pre))
+
+for (i in 1:nrow(DF_pre)){
+  
+  if(DF_pre$Surgery.Performed.[i] == "Yes" && DF_pre$Chemotherapy[i] == "Yes" && DF_pre$rad[i] == "Yes"){
+    DF_pre$True_Therapy[i] = "S+C+R"
   }
-  else if(DF$Surgery.Performed.[i] == "Yes" && DF$Chemotherapy[i] == "Yes" && DF$rad[i] == "No"){
-    DF$Treatment[i] = "S+C"
+  else if(DF_pre$Surgery.Performed.[i] == "Yes" && DF_pre$Chemotherapy[i] == "Yes" && DF_pre$rad[i] == "No"){
+    DF_pre$True_Therapy[i] = "S+C"
   }
-  else if(DF$Surgery.Performed.[i] == "Yes" && DF$Chemotherapy[i] == "No/Unknown" && DF$rad[i] == "Yes"){
-    DF$Treatment[i] = "S+R"
+  else if(DF_pre$Surgery.Performed.[i] == "Yes" && DF_pre$Chemotherapy[i] == "No/Unknown" && DF_pre$rad[i] == "Yes"){
+    DF_pre$True_Therapy[i] = "S+R"
   }
-  else if(DF$Surgery.Performed.[i] == "Yes" && DF$Chemotherapy[i] == "No/Unknown" && DF$rad[i] == "No"){
-    DF$Treatment[i] = "S"
+  else if(DF_pre$Surgery.Performed.[i] == "Yes" && DF_pre$Chemotherapy[i] == "No/Unknown" && DF_pre$rad[i] == "No"){
+    DF_pre$True_Therapy[i] = "S"
   }
-  else if(DF$Surgery.Performed.[i] == "No" && DF$Chemotherapy[i] == "No/Unknown" && DF$rad[i] == "No"){
-    DF$Treatment[i] = "No treatment"
+  else if(DF_pre$Surgery.Performed.[i] == "No" && DF_pre$Chemotherapy[i] == "No/Unknown" && DF_pre$rad[i] == "No"){
+    DF_pre$True_Therapy[i] = "No treatment"
   }
-  else if(DF$Surgery.Performed.[i] == "No" && DF$Chemotherapy[i] == "No/Unknown" && DF$rad[i] == "Yes"){
-    DF$Treatment[i] = "R"
+  else if(DF_pre$Surgery.Performed.[i] == "No" && DF_pre$Chemotherapy[i] == "No/Unknown" && DF_pre$rad[i] == "Yes"){
+    DF_pre$True_Therapy[i] = "R"
   }
-  else if(DF$Surgery.Performed.[i] == "No" && DF$Chemotherapy[i] == "Yes" && DF$rad[i] == "No"){
-    DF$Treatment[i] = "C"
+  else if(DF_pre$Surgery.Performed.[i] == "No" && DF_pre$Chemotherapy[i] == "Yes" && DF_pre$rad[i] == "No"){
+    DF_pre$True_Therapy[i] = "C"
   }
-  else if(DF$Surgery.Performed.[i] == "No" && DF$Chemotherapy[i] == "Yes" && DF$rad[i] == "Yes"){
-    DF$Treatment[i] = "C+R"
+  else if(DF_pre$Surgery.Performed.[i] == "No" && DF_pre$Chemotherapy[i] == "Yes" && DF_pre$rad[i] == "Yes"){
+    DF_pre$True_Therapy[i] = "C+R"
   }
   
 }
 ```
 
+  Meanwhile, the 2021 version **NCCN Guideline** has also provided the information of what kinds of treatments patients with oral cavity cancer are supposed to take. 
+  
+  Since the recommended treatment is based on `AJCC.7.Stage`, where contains information of tumor size (`Size`) and lymph nodes status (`Lymph.Nodes`), we will create a column `Rec_Therapy` indicating the treatments that a patient is supposed to have under **NCCN Guideline**.
+  
 ```{r message=FALSE, warning=FALSE}
-#Create the canser stage for oral cavity
-df_recommend <- DF %>% 
-  select(Site,Size,AJCC.7.Stage,Study.ID,Treatment) %>%
+# Create the canser stage for oral cavity
+df_recommend <- DF_pre %>% 
+  select(Site,Size,AJCC.7.Stage,Study.ID,True_Therapy) %>%
   dplyr::filter(Site=="Oral Cavity") %>%
   unite("Cancer_Stage",Site,AJCC.7.Stage,sep = "-") %>% 
   mutate(Cancer_Stage = factor(Cancer_Stage,levels = c("Oral Cavity-I","Oral Cavity-II","Oral Cavity-III","Oral Cavity-IVA","Oral Cavity-IVB","Oral Cavity-IVC","Oral Cavity-IVNOS")))
 ```
 
 ```{r message=FALSE, warning=FALSE}
-#Create the variable True_Therapy that shows the therapy combinations for patients based on the NCCN guideline.
-df_recommend$True_Therapy <- rep(NA,nrow(df_recommend))
+# Create the variable Rec_Therapy that shows the therapy combinations for patients based on the NCCN guideline.
+df_recommend$Rec_Therapy <- rep(NA,nrow(df_recommend))
 for(i in 1:nrow(df_recommend)){
   if(df_recommend$Cancer_Stage[i]=="Oral Cavity-I"){
-    df_recommend$True_Therapy[i]="S+R"
+    df_recommend$Rec_Therapy[i]="S+R"
   }
   else if(df_recommend$Cancer_Stage[i]=="Oral Cavity-II"){
-    df_recommend$True_Therapy[i]="S+R"
+    df_recommend$Rec_Therapy[i]="S+R"
   }
   else{
-    df_recommend$True_Therapy[i]="S"
+    df_recommend$Rec_Therapy[i]="S"
   }
 }
 ```
 
-
+  For equity issue, we believe it would be more important to examine the matchness of recommended therapies and the real therapies that patients actually get. 
+  
+  So, we create a column `Match` to evaluate such matchness. `Match` is a binary feature, it equals to 1 when `True_Therapy` and `Rec_Therapy` are completely matched or `Rec_Therapy` is the subset of `True_Therapy`(eg. A patient is supposed to take surgery based on NCCN Guideline, and this patient actully has taken surgery and chemo), and it equals to 0 otherwise.
+  
 ```{r message=FALSE, warning=FALSE}
-#Create the variable Match with binnary outcomes.
-df_recommend$Match = ifelse(df_recommend$Treatment == df_recommend$True_Therapy, 1,0)
+# Create the variable Match with binnary outcomes.
+df_recommend$Match = ifelse(df_recommend$True_Therapy == df_recommend$Rec_Therapy, 1,0)
 for(i in 1:nrow(df_recommend)){
-  if(df_recommend$Treatment[i]=="S+R" && df_recommend$True_Therapy[i] == "S"){
+  if(df_recommend$True_Therapy[i]=="S+R" && df_recommend$Rec_Therapy[i] == "S"){
     df_recommend$Match[i] = 1
   }
-  else if(df_recommend$Treatment[i]=="S+C+R" && df_recommend$True_Therapy[i] == "S"){
+  else if(df_recommend$True_Therapy[i]=="S+C+R" && df_recommend$Rec_Therapy[i] == "S"){
     df_recommend$Match[i] = 1
   }
-  else if(df_recommend$Treatment[i]=="S+C+R" && df_recommend$True_Therapy[i] == "S+R"){
+  else if(df_recommend$True_Therapy[i]=="S+C+R" && df_recommend$Rec_Therapy[i] == "S+R"){
     df_recommend$Match[i] = 1
   }
 }
 ```
 
-```{r message=FALSE, warning=FALSE}
 
+```{r}
+# Merger the data for modeling
+oral_cancer <- left_join(DF_pre[,-which((names(DF_pre) %in% c("Site","Subsite","AJCC.7.Stage","Size","Lymph.Nodes","Mets","Surgery.Performed.","Surgery.Decision","Radiation","Chemotherapy","rad","True_Therapy")))],df_recommend,by = "Study.ID")
+
+oral_cancer <- 
+  oral_cancer %>% dplyr::rename(
+  `9th.Education` = X...9th.Grade.Education,
+  HS.Education = X...High.School.Education,
+  Bachelors.Education = X...Bachelors.Education,
+  Below.Poverty = X..Persons.Below.Poverty,
+  Unemployed = X..Unemployed.ACS.2013.2017,
+  Language.Isolation = X..Language.isolation.ACS.2013.2017..households.)
+
+# Data set for modeling
+# write.csv(oral_cancer,"oral_cancer_data.csv",row.names = F)
 ```
 
 
