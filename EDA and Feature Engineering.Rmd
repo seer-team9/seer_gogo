@@ -1,6 +1,6 @@
 ---
 title: "679 Final Project"
-author: "Team 9"
+author: "Team 9(Chenghao Meng, Chun Gao, Donghao Xue, Jingwen Xu)"
 date: "4/12/2021"
 output:
   pdf_document: default
@@ -15,27 +15,43 @@ library(tidyr)
 library(viridis)
 library(psych)
 library(rstanarm)
+library(arm)
+library(randomForest)
+library(caret)
+library(e1071)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
+# Introduction
+
+The treatment and management of patients with chronic and severe illnesses have been affected by several different aspects of factors, not just their medical care condition but their social background. From a practical and data acquisition point of view, the data sets provided by our clients mainly focus on cancer research.
+
+Our main goal of the project is to explore how biases (race, gender, education level and other factors including) will affect the matching between the treatments that a patient should have and actually have. Besides, to simplify our project we would like to focus on oral cavity cancer and set particular individuals as a reference group.
+
+# Data Description
+
+We have a dataset with 23,291 rows and 25 columns. This dataset contains information of patients who have cancers in 7 different sites, including Oral Cavity, Sinonasal, Larynx, Salivary Gland, Oropharynx, Hypopharynx and Nasopharynx. The columns are showed as below:
+
+```{r echo=FALSE}
 DF <- read.csv("transformed.csv", encoding="UTF-8")
-describe(DF)
 ```
 
-```{r}
+```{r echo=FALSE}
 colnames(DF) <- c("Study.ID","Sex",                                    "Year.of.Diagnosis","Age.at.Diagnosis","Race",                                       "Insurance","SEER.Registry","X...9th.Grade.Education",                         "X...High.School.Education","X...Bachelors.Education",                         "X..Persons.Below.Poverty","X..Unemployed.ACS.2013.2017",                     "Median.Household.Income",                      "X..Language.isolation.ACS.2013.2017..households.","Site",                              "Subsite","AJCC.7.Stage","Size",                                            "Lymph.Nodes","Mets","Cause.of.Death",                                  "Surgery.Performed.","Surgery.Decision","Radiation",                                    "Chemotherapy")
 colnames(DF)
 ```
 
 # Exploratory Data Analysis
 
-## Cancer Selection
+## Cancer Type Selection
 
-  There are seven kinds of cancer with different stages in this dataset. To simplify our research, we decide to choose only one kind of cancer to do the analysis. 
-  So, we firstly explore the top 10 cancers(including the stages) that the patients are most likely to give up the surgery. Giving up the surgery can suggest more that the patients are affected by some factors such as biases in the society.
+  There are seven kinds of cancer with different stages in this dataset. To simplify our research, we decide to choose only one kind of cancer to do the analysis.
 
-```{r message=FALSE}
+  So, we firstly explore the top 10 cancers (including the stages) that the patients are most likely to give up the surgery. Giving up the surgery can suggest that the patients are affected by some factors such as biases in the society.
+
+  The plot below shows that, even given recommendation, some patients with oral cavity cancer in nearly all the stages, even the early stage, have given up the surgery. Combining the information given by the status of chemo and radiation therapy, we would like to choose oral cavity cancer as our research direction.
+
+```{r message=FALSE, echo=FALSE}
 # Surgery.Decision
 df_cancer_stage <- DF %>% 
   dplyr::select(Site,AJCC.7.Stage,Surgery.Decision,Study.ID) %>% 
@@ -45,7 +61,7 @@ df_cancer_stage <- DF %>%
   dplyr::arrange(desc(num))
 ```
 
-```{r}
+```{r echo=FALSE}
 df_cancer_stage$Surgery.Decision <- revalue(df_cancer_stage$Surgery.Decision, 
 c("Recommended, unknown if performed"= "Recommended",
   
@@ -60,10 +76,7 @@ c("Recommended, unknown if performed"= "Recommended",
 "Unknown; death certificate; or autopsy only (2003+)"= "Unknown"))
 ```
 
-  The plot below shows that, even given recommendation, some patients with oral cavity cancer in nearly all the stages, even the early stage, have given up the surgery. 
-  Combining the infomation given by the status of chemo and radiation therapy, we would like to choose oral cavity cancer as our research direction.
-
-```{r}
+```{r echo=FALSE}
 # Top 10 Giving-Up-Surgery Cancer
 df_cancer_stage %>% 
   dplyr::filter(Surgery.Decision %in% c("Recommended","Recom & refused","Recom & not performed")) %>% 
@@ -81,7 +94,7 @@ df_cancer_stage %>%
 ```
 
 
-```{r message=FALSE, warning=FALSE}
+```{r message=FALSE, warning=FALSE, echo=FALSE}
 # Chemo
 df_cancer_chemo <- DF %>% 
   dplyr::select(Site,AJCC.7.Stage,Chemotherapy,Study.ID) %>% 
@@ -91,7 +104,7 @@ df_cancer_chemo <- DF %>%
   dplyr::arrange(desc(num))
 ```
 
-```{r}
+```{r echo=FALSE}
 df_cancer_chemo %>% 
   mutate(percent = num/sum(num)) %>% 
   mutate(Cancer_Stage = reorder(Cancer_Stage,percent)) %>% 
@@ -106,7 +119,7 @@ df_cancer_chemo %>%
   coord_flip()
 ```
 
-```{r message=FALSE, warning=FALSE}
+```{r message=FALSE, warning=FALSE, echo=FALSE}
 # Radiation
 df_cancer_radi <- DF %>% 
   dplyr::select(Site,AJCC.7.Stage,Radiation,Study.ID) %>% 
@@ -116,7 +129,7 @@ df_cancer_radi <- DF %>%
   dplyr::arrange(desc(num))
 ```
 
-```{r}
+```{r echo=FALSE}
 df_cancer_radi %>% 
   mutate(percent = num/sum(num)) %>% 
   mutate(Cancer_Stage = reorder(Cancer_Stage,percent)) %>% 
@@ -132,14 +145,12 @@ df_cancer_radi %>%
   coord_flip()
 ```
 
-
-
 ```{r echo=FALSE}
 # Data of Oral Cavity
 df_oral <- DF %>% dplyr::filter(Site == "Oral Cavity")
 ```
 
-## Features vs `Surgery Performed` 
+## Features by Surgery Performed Status
 
   To begin with, we would like to take a look at the condition of surgery implementation.
 
@@ -152,7 +163,7 @@ df_oral <- DF %>% dplyr::filter(Site == "Oral Cavity")
   For Poverty, the state of Georgia has the highest poverty rate, over 15% in average. For Unemployment, the unemployment rates are quite similar across those 4 states. For Household Income, the state of Georgia has the lowest household income in average. For Language Isolation, the state of Alaska has the lowest language isolation rate, while the state of California has the highest.
   
 
-```{r message=FALSE}
+```{r message=FALSE, echo=FALSE}
 g1 <- df_oral %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Ave = mean(X..Persons.Below.Poverty)) %>% 
   ggplot() +
   geom_bar(aes(x = SEER.Registry, y = Ave), stat = "identity") +
@@ -174,11 +185,11 @@ g4 <- df_oral %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Ave = mean
   labs(title = "Language Isolation Percentage vs State", x = "State", y = "Language Isolation Percentage")
 ```
 
-```{r}
+```{r echo=FALSE}
 gridExtra::grid.arrange(g1, g2, g3, g4, nrow = 2)
 ```
 
-```{r message=FALSE}
+```{r message=FALSE, echo=FALSE}
 edu_9 <- df_oral %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Avg = mean(X...9th.Grade.Education))
 edu_h <- df_oral %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Avg = mean(X...High.School.Education))
 edu_b <- df_oral %>% dplyr::group_by(SEER.Registry) %>% dplyr::summarise(Avg = mean(X...Bachelors.Education))
@@ -196,7 +207,7 @@ values <- c(2.66, 7.61, 28.99, 9.242076, 16.874751, 32.903706, 4.116577, 9.66728
 
   For Education, the state of California has the highest proportion of respondents are educated below 9th Grade and the highest proportion of repondents are educated below High School. Meanwhile, the state of Connecticut has the highest proportion of respondents are educated below Bechelor.
   
-```{r message=FALSE}
+```{r message=FALSE, echo=FALSE}
 df_state_edu2 <- data.frame(state, edu, values)
 df_state_edu2 %>% 
   ggplot(aes(fill = edu, x = state, y = values/100)) +
@@ -208,7 +219,7 @@ df_state_edu2 %>%
 
   By examining surgery implementation condition by state, we found that California has the largest population of patients researched in the data. While Alaska and Connecticut have the largest proportion of patients who have performed the surgery.
   
-```{r message=FALSE}
+```{r message=FALSE, echo=FALSE}
 # Registry State vs. Whether the surgery implemented
 p1 <- ggplot(df_oral, aes(x = SEER.Registry, fill = Surgery.Performed.) ) +  
     geom_bar( aes(y = ..count../sum(..count..) ) ) +
@@ -218,7 +229,7 @@ p1 <- ggplot(df_oral, aes(x = SEER.Registry, fill = Surgery.Performed.) ) +
     scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
     scale_fill_manual("Surgery Implementation", values = c("grey55", "darkred") ) 
 
-p2 <- df_oral %>% select(SEER.Registry, Study.ID, Surgery.Performed.) %>% 
+p2 <- df_oral %>% dplyr::select(SEER.Registry, Study.ID, Surgery.Performed.) %>% 
   dplyr::group_by(SEER.Registry, Surgery.Performed.) %>% 
   dplyr::summarise(num = n()) %>% 
   ungroup() %>% 
@@ -239,9 +250,9 @@ gridExtra::grid.arrange(p1,p2)
 
   Before looking at the surgery condition by race and gender, we would like to take a look at the distribution of race by gender. The plot above shows that, more than 60% of observations are white people, and more than 40% of observations are white male, which indicates that there would be an imbalance problem in the data.
     
-```{r message=FALSE, warning=FALSE}
+```{r message=FALSE, warning=FALSE, echo=FALSE}
 # Distribution of race by gender
-df_oral %>% select(Race,Sex,Study.ID) %>% 
+df_oral %>% dplyr::select(Race,Sex,Study.ID) %>% 
     dplyr::group_by(Race,Sex) %>% 
     dplyr::summarise(num = n()) %>% 
     ungroup() %>% 
@@ -257,10 +268,10 @@ df_oral %>% select(Race,Sex,Study.ID) %>%
     
   For surgery condition, the plot below shows that Asian of Pacific Islander has the largest proportion of performing the surgery while the Black has the smallest one. Female and Male has almost the same proportion to accept the surgery, which seems that there is no gender biases.
     
-```{r message=FALSE}
+```{r message=FALSE, echo=FALSE}
 # Race vs. Whether the surgery implemented
 
-p3 <- df_oral %>% select(Race, Study.ID, Surgery.Performed.) %>% 
+p3 <- df_oral %>% dplyr::select(Race, Study.ID, Surgery.Performed.) %>% 
   dplyr::group_by(Race, Surgery.Performed.) %>% 
   dplyr::summarise(num = n()) %>% 
   ungroup() %>% 
@@ -278,7 +289,7 @@ p3 <- df_oral %>% select(Race, Study.ID, Surgery.Performed.) %>%
 
 # Gender vs. Whether the surgery implemented
 
-p4 <- df_oral %>% select(Sex, Study.ID, Surgery.Performed.) %>% 
+p4 <- df_oral %>% dplyr::select(Sex, Study.ID, Surgery.Performed.) %>% 
   dplyr::group_by(Sex, Surgery.Performed.) %>% 
   dplyr::summarise(num = n()) %>% 
   ungroup() %>% 
@@ -299,7 +310,7 @@ gridExtra::grid.arrange(p3,p4)
   
   Then, we find that the white male has the largest proportion of performing a surgery. 
     
-```{r}
+```{r echo=FALSE}
 # Gender cross Race  vs.  Whether the surgery implemented
 df2 <- df_oral[,c("Sex","Race", "Surgery.Performed.")] 
 df2$Sex <- revalue(df2$Sex, c("Female"="F"))
@@ -310,7 +321,7 @@ df2 <-  unite(df2, "Sex_Race", Sex, Race, sep = "_", remove = FALSE)
 ```
 
 
-```{r}
+```{r echo=FALSE}
 ggplot(df2, aes(x = Sex_Race, fill = Surgery.Performed.) ) +  
     geom_bar( aes(y = ..count../sum(..count..) ) ) +
     labs(title = "Surgery Implementation by Gender_Race",
@@ -319,11 +330,11 @@ ggplot(df2, aes(x = Sex_Race, fill = Surgery.Performed.) ) +
     scale_y_continuous(labels = scales::percent_format(accuracy = 1))+
     scale_fill_manual("Surgery Implementation", values = c("grey55", "darkred")) + coord_flip()
 ```
-**Age**
+**Age and Year of Diagnosis**
 
   The age feature is recorded as a continuous variable, so we make a density plot instead of the bar plot. In the below plot, we find that the distributions of performing surgery and not performing surgery on ages are mostly overlapping. However, we can still see that, for people older than 75 years old, they are more likely to perform the surgery; while for people younger than 75 years old, they are more likely to not perform the surgery.
  
-```{r message=FALSE}
+```{r message=FALSE, echo=FALSE}
 ggplot(data=df_oral, aes(x=Age.at.Diagnosis, group=Surgery.Performed., fill=Surgery.Performed.)) +
     geom_density(adjust=1.5, alpha=.4) + 
   labs(title = "Surgery Performed Status by Age",
@@ -331,45 +342,11 @@ ggplot(data=df_oral, aes(x=Age.at.Diagnosis, group=Surgery.Performed., fill=Surg
        fill = "Surgery Performed")
 ```
 
-**Insurance**
+  Then, we would like to explore the change of surgery implementation on time series. From the plot below, for the trend of amount of performed surgery, we can see that as time goes by, there is an upper trend.
 
-  Besides of the demographic features, we also concern about the impact of social biases like insurance on whether to perform the surgery or not. From below chart, we can see that the large majority of repondents are insured and insured people are most likely to perform the surgery.
-
-```{r message=FALSE, warning=FALSE}
-p5 <- df_oral %>% select(Insurance,Surgery.Performed.,Study.ID) %>% 
-    dplyr::group_by(Insurance,Surgery.Performed.) %>% 
-    dplyr::summarise(num = n()) %>% 
-    ungroup() %>% 
-    mutate(percent = num/sum(num)) %>% 
-    ggplot() +
-    geom_bar(aes(x = Insurance,y = percent,fill = Surgery.Performed.),stat = "identity") +
-    labs(title = "Surgery Implementation by Insurance Type",x = NULL, y = "Percentage") + 
-    scale_y_continuous(labels = scales::percent_format(accuracy = 1))+
-    scale_fill_manual("Surgery Implementation", values = c("grey55", "darkred")) + coord_flip()
-
-p6 <- df_oral %>% select(Insurance,Surgery.Performed.,Study.ID) %>% 
-    dplyr::group_by(Insurance,Surgery.Performed.) %>% 
-    dplyr::summarise(num = n()) %>% 
-    ungroup() %>% 
-    mutate(percent = num/sum(num)) %>% 
-    ggplot() +
-    geom_bar(aes(x = Insurance,y = percent,fill = Surgery.Performed.), position = "fill", stat = "identity") +
-    labs(x = NULL, y = "Percentage") + 
-    scale_y_continuous(labels = scales::percent_format(accuracy = 1))+
-    scale_fill_manual("Surgery Implementation", values = c("grey55", "darkred")) + coord_flip()
-
-gridExtra::grid.arrange(p5,p6)
-```
-
-## Trend
-
-  After exploring the relationship between all kinds of features and the surgery implementation situation, we want to research the change of surgery implementation on time series.
-  
-  From the below plot, for the trend of amount of performed surgery, we can see that as time goes by, there is an upper trend. 
-    
-```{r message=FALSE, warning=FALSE}
+```{r message=FALSE, warning=FALSE, echo=FALSE}
 df_oral %>% 
-    select(Year.of.Diagnosis,Surgery.Performed.,Study.ID) %>% 
+    dplyr::select(Year.of.Diagnosis,Surgery.Performed.,Study.ID) %>% 
     mutate(Year.of.Diagnosis = as.character(Year.of.Diagnosis)) %>% 
     dplyr::group_by(Year.of.Diagnosis,Surgery.Performed.) %>% 
     dplyr::summarise(num = n()) %>% ungroup() %>% 
@@ -383,6 +360,36 @@ df_oral %>%
     scale_color_manual("Surgery Implementation",values = c("grey55", "darkred"))
 ```
 
+**Insurance**
+
+  Besides of the demographic features, we also concern about the impact of social biases like insurance on whether to perform the surgery or not. From below chart, we can see that the large majority of repondents are insured and insured people are most likely to perform the surgery.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+p5 <- df_oral %>% dplyr::select(Insurance,Surgery.Performed.,Study.ID) %>% 
+    dplyr::group_by(Insurance,Surgery.Performed.) %>% 
+    dplyr::summarise(num = n()) %>% 
+    ungroup() %>% 
+    mutate(percent = num/sum(num)) %>% 
+    ggplot() +
+    geom_bar(aes(x = Insurance,y = percent,fill = Surgery.Performed.),stat = "identity") +
+    labs(title = "Surgery Implementation by Insurance Type",x = NULL, y = "Percentage") + 
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1))+
+    scale_fill_manual("Surgery Implementation", values = c("grey55", "darkred")) + coord_flip()
+
+p6 <- df_oral %>% dplyr::select(Insurance,Surgery.Performed.,Study.ID) %>% 
+    dplyr::group_by(Insurance,Surgery.Performed.) %>% 
+    dplyr::summarise(num = n()) %>% 
+    ungroup() %>% 
+    mutate(percent = num/sum(num)) %>% 
+    ggplot() +
+    geom_bar(aes(x = Insurance,y = percent,fill = Surgery.Performed.), position = "fill", stat = "identity") +
+    labs(x = NULL, y = "Percentage") + 
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1))+
+    scale_fill_manual("Surgery Implementation", values = c("grey55", "darkred")) + coord_flip()
+
+gridExtra::grid.arrange(p5,p6)
+```
+
 
 # Feature Engineering
 
@@ -390,7 +397,7 @@ df_oral %>%
 
   The columns `Surgery.Performed.`,`Radiation` and `Chemotherapy` contain information of the actual therapy that the patients have taken. It would be more informative to combine these 3 columns together to reflect patients' treatment as a whole. Hence, we create a column `True_Therapy` to get the aggregated information.
   
-```{r message=FALSE, warning=FALSE}
+```{r message=FALSE, warning=FALSE, echo=FALSE}
 DF_pre <- df_oral
 
 # Combine variables of Surgery Performed, Chemotherapy and Radiation into one varibale called True_Therapy
@@ -428,20 +435,18 @@ for (i in 1:nrow(DF_pre)){
 }
 ```
 
-  Meanwhile, the 2021 version **NCCN Guideline** has also provided the information of what kinds of treatments patients with oral cavity cancer are supposed to take. 
+  Meanwhile, the 2021 version **NCCN Guideline** has also provided the information of what kinds of treatments patients with oral cavity cancer are supposed to take. Since the recommended treatment is based on `AJCC.7.Stage`, where contains information of tumor size (`Size`) and lymph nodes status (`Lymph.Nodes`), we will create a column `Rec_Therapy` indicating the treatments that a patient is supposed to have under **NCCN Guideline**.
   
-  Since the recommended treatment is based on `AJCC.7.Stage`, where contains information of tumor size (`Size`) and lymph nodes status (`Lymph.Nodes`), we will create a column `Rec_Therapy` indicating the treatments that a patient is supposed to have under **NCCN Guideline**.
-  
-```{r message=FALSE, warning=FALSE}
+```{r message=FALSE, warning=FALSE, echo=FALSE}
 # Create the canser stage for oral cavity
 df_recommend <- DF_pre %>% 
-  select(Site,Size,AJCC.7.Stage,Study.ID,True_Therapy) %>%
+  dplyr::select(Site,Size,AJCC.7.Stage,Study.ID,True_Therapy) %>%
   dplyr::filter(Site=="Oral Cavity") %>%
   unite("Cancer_Stage",Site,AJCC.7.Stage,sep = "-") %>% 
   mutate(Cancer_Stage = factor(Cancer_Stage,levels = c("Oral Cavity-I","Oral Cavity-II","Oral Cavity-III","Oral Cavity-IVA","Oral Cavity-IVB","Oral Cavity-IVC","Oral Cavity-IVNOS")))
 ```
 
-```{r message=FALSE, warning=FALSE}
+```{r message=FALSE, warning=FALSE, echo=FALSE}
 # Create the variable Rec_Therapy that shows the therapy combinations for patients based on the NCCN guideline.
 df_recommend$Rec_Therapy <- rep(NA,nrow(df_recommend))
 for(i in 1:nrow(df_recommend)){
@@ -457,11 +462,9 @@ for(i in 1:nrow(df_recommend)){
 }
 ```
 
-  For equity issue, we believe it would be more important to examine the matchness of recommended therapies and the real therapies that patients actually get. 
+  For equity issue, we believe it would be more important to examine the matchness of recommended therapies and the real therapies that patients actually get. So, we create a column `Match` to evaluate such matchness. `Match` is a binary feature, it equals to 1 when `True_Therapy` and `Rec_Therapy` are completely matched or `Rec_Therapy` is the subset of `True_Therapy`(eg. A patient is supposed to take surgery based on NCCN Guideline, and this patient actully has taken surgery and chemo), and it equals to 0 otherwise.
   
-  So, we create a column `Match` to evaluate such matchness. `Match` is a binary feature, it equals to 1 when `True_Therapy` and `Rec_Therapy` are completely matched or `Rec_Therapy` is the subset of `True_Therapy`(eg. A patient is supposed to take surgery based on NCCN Guideline, and this patient actully has taken surgery and chemo), and it equals to 0 otherwise.
-  
-```{r message=FALSE, warning=FALSE}
+```{r message=FALSE, warning=FALSE, echo=FALSE}
 # Create the variable Match with binnary outcomes.
 df_recommend$Match = ifelse(df_recommend$True_Therapy == df_recommend$Rec_Therapy, 1,0)
 for(i in 1:nrow(df_recommend)){
@@ -478,13 +481,13 @@ for(i in 1:nrow(df_recommend)){
 ```
 
 
-```{r}
+```{r echo=FALSE}
 # Merger the data for modeling
 oral_cancer <- left_join(DF_pre[,-which((names(DF_pre) %in% c("Site","Subsite","AJCC.7.Stage","Size","Lymph.Nodes","Mets","Surgery.Performed.","Surgery.Decision","Radiation","Chemotherapy","rad","True_Therapy")))],df_recommend,by = "Study.ID")
 
 oral_cancer <- 
   oral_cancer %>% dplyr::rename(
-  `9th.Education` = X...9th.Grade.Education,
+  `X9th.Education` = X...9th.Grade.Education,
   HS.Education = X...High.School.Education,
   Bachelors.Education = X...Bachelors.Education,
   Below.Poverty = X..Persons.Below.Poverty,
@@ -495,11 +498,199 @@ oral_cancer <-
 # write.csv(oral_cancer,"oral_cancer_data.csv",row.names = F)
 ```
 
+  We also do some feature transformations. For the `Median.Household.Income`, we change it from continuous to ordinal with 3 levels. The first level is under first quantile of the income, the second level is between first quanntile and third quantile of the income, and the third level is greater than third quantile of the highest income. For the `Race`, we use the white as the reference group. 
+  
+  Referring to the below plot, different insured conditions have overlapping distributions on the income population from low to high. So we also change the `Insurance` to be binary with 1 representing the patient who had all kinds of insurance and 0 representing the patient who didn't have any insurance. We also change the `Sex` variable to be binary with 1 representing male and 0 representing female.
 
-# Modeling
+```{r echo=FALSE}
+oral <-  oral_cancer
 
-```{r}
+break1 <-  c(21840, 57160, 79640, 106760)
+label <-  c("Low","Mid","High")
+oral$Income_Level <-  oral$Median.Household.Income
+oral$Income_Level <- cut(oral$Income_Level, break1, label,include.lowest = T)
+```
 
+```{r echo=FALSE}
+ggplot(data=oral, aes(x=Median.Household.Income, group=Insurance, fill=Insurance)) +
+    geom_density(adjust=1.5, alpha=.4) + 
+  labs(title = "Insurance Distribution on Household Income",
+       x = "Househole Income",y = "Density",
+       fill = "Insurance")
+```
+
+```{r echo=FALSE}
+oral$Sex <-  ifelse(oral$Sex == "Male", 1, 0)
+oral$Race <-  factor(oral$Race, levels = c("White", "Asian or Pacific Islander", "Black", "Hispanic","American Indian/Alaska Native"))
+oral$Insurance <- ifelse(oral$Insurance == "Uninsured",0,1)
+```
+
+## Feature selection
+
+  When we choose the predictors that will be used in the model, we make a random forest-based selection to see the improtance level of all variables. We decide not to use the `Income_Level` since its iportance level is relatively low.
+
+```{r echo=FALSE}
+# Train-Test Split
+set.seed(1)
+split_index <-  sort(sample(nrow(oral), nrow(oral)*0.8))
+trainset <-  oral[split_index,]
+testset <-  oral[-split_index,]
+```
+
+```{r echo=FALSE}
+# Randomm Forest-based selection
+set.seed(1)
+rf_select <-  randomForest(as.factor(Match) ~ Bachelors.Education + Sex + Race+ Insurance + Below.Poverty + Unemployed + Language.Isolation + Income_Level + Sex:Race + Cause.of.Death + SEER.Registry + X9th.Education + HS.Education + Age.at.Diagnosis + Cancer_Stage, data = trainset, mtry = 4, importance = T)
+
+# Visualize the importance
+# importance(rf_select)
+varImpPlot(rf_select)
+```
+
+# Model
+
+## Logistic Regression
+
+  Since the outcome is binary, firstly we would like to use the logistic regression model. Except for all the predictors that we decide to use, we also add the interaction term of `Race` and `Sex`.
+
+```{r echo=FALSE}
+m1 <-  glm(Match ~ Cancer_Stage  + Language.Isolation + X9th.Education + Bachelors.Education + Unemployed + Age.at.Diagnosis + Below.Poverty + Race + Sex + Race:Sex + Insurance, data = trainset, family = binomial(link = "logit"))
+
+summary(m1)
+```
+
+```{r echo=FALSE}
+# Residual Plor-Logistic Model
+binnedplot(fitted(m1), residuals(m1))
+```
+
+```{r echo=FALSE}
+logis_test_pred <- factor(ifelse(predict(m1, newdata = testset,type = "response") < 0.5, 0, 1))
+
+table(logis_test_pred,testset$Match)
+
+logis_acc_base <- (690+430)/(690+141+136+430)
+logis_acc_base
+```
+
+```{r echo=FALSE}
+# K-Fold Validation
+set.seed(7)
+folds <- createFolds(y=oral$Match,k=10)
+logis_cv <- data.frame(number = rep(NA,10), test_accuracy = rep(NA,10), train_accuracy = rep(NA,10))
+```
+
+```{r echo=FALSE}
+# 10-fold CV
+for(i in 1:10){
+  
+ fold_test <- oral[folds[[i]],]
+ fold_train <- oral[-folds[[i]],]
+  
+  
+ fold_model <- glm(Match ~ Cancer_Stage  + Language.Isolation + X9th.Education + Bachelors.Education + Unemployed + Age.at.Diagnosis + Below.Poverty + Race + Sex + Race:Sex + Insurance, data = fold_train, family = binomial(link = "logit"))
+ 
+ # Test Accuracy
+ fold_predict <- predict(fold_model,type='response',newdata=fold_test)
+ fold_predict <- ifelse(fold_predict > 0.5,1,0)
+ 
+ fold_test$predict <-  fold_predict
+ fold_test_error <-  mean(fold_test$predict!=fold_test$Match)
+ fold_test_accuracy <-  1 - fold_test_error
+ logis_cv$number[i] <-  paste0("k=",i)
+ logis_cv$test_accuracy[i] <-  fold_test_accuracy
+ 
+ # Train Accuracy
+ fold_predict2 <- predict(fold_model,type="response",newdata=fold_train)
+ fold_predict2 <- ifelse(fold_predict2 > 0.5,1,0)
+ fold_train$predict <-  fold_predict2
+ fold_train_error <-  mean(fold_train$predict!=fold_train$Match)
+ fold_train_accuracy <-  1- fold_train_error
+ logis_cv$train_accuracy[i] <-  fold_train_accuracy
+}
+```
+
+```{r echo=FALSE}
+# Visualize K-fold CV
+logis_cv %>% mutate(number = factor(number,levels = c("k=1","k=2","k=3","k=4","k=5","k=6","k=7","k=8","k=9","k=10"))) %>% 
+  ggplot() + 
+  geom_line(aes(x = number,y = test_accuracy,group = 1,col = "Test"))+
+  geom_line(aes(x = number,y = train_accuracy,group = 1,col = "Train")) + 
+  labs(title = "K-fold Cross Validation: Logistic Model",
+       subtitle = "K = 10",
+       x = NULL,y = "Accuracy",col = "Accuracy")
+```
+
+# Naive Bayes
+
+  Naive Bayesian classifier can take the given variables as conditions to calculate the probability that an observation can be classified into a certain category. 
+  
+  In this project, we have a lot of features that realtes to the matching between the therapy a patient is supposed to have and actually have. These features can be seen as given conditions, which are also known as prior information. So, Naive Bayesian classifier would be appropriate for this problem.
+  
+  By using `e1071` package, we have a initial Naive Bayesian model with an accuracy of 79.31%, which is slightly lower than the accuracy of the logistic (80.17%).
+  
+```{r echo=FALSE}
+m2 <- naiveBayes(as.factor(Match) ~ Cancer_Stage  + Language.Isolation + X9th.Education + Bachelors.Education + Unemployed + Age.at.Diagnosis + Below.Poverty + Race + Sex + Insurance,data = trainset)
+
+bayes_test_pred <- predict(m2, newdata = testset) 
+```
+
+```{r echo=FALSE}
+table(bayes_test_pred,as.factor(testset$Match))
+1-mean(bayes_test_pred!=as.factor(testset$Match))
+```
+
+  Then we do the tuning of the `laplace` parameter, the red line indicates the accuracy of the initial model, and the blue line indicates the accuracy of the logistic model. When $laplace=70$, the model reached the highest accuracy. 
+  
+  However, it is still lower than the logistic model, which might due to the hypothesis of Naive Bayesian classifier that all variables' impact on the outcome is independent.
+  
+```{r echo=FALSE}
+laplace_value <- seq(0,100,by=10)
+train_err_bye <- rep(NA, length(laplace_value))
+
+set.seed(1)
+for (i in 1:length(laplace_value)) {
+    bye_fold_model <-naiveBayes(as.factor(Match) ~ Cancer_Stage  + Language.Isolation + X9th.Education + Bachelors.Education + Unemployed + Age.at.Diagnosis + Below.Poverty + Race + Sex + Insurance,data = trainset,laplace = laplace_value[i])
+    
+    bye_fold_pred <- predict(bye_fold_model,testset)
+    train_err_bye[i] <- mean(bye_fold_pred!=as.factor(testset$Match))
+}
+```
+
+```{r echo=FALSE}
+ggplot(data = data.frame(laplace = laplace_value, err = 1-train_err_bye))+
+  geom_point(aes(x = laplace, y = err)) + 
+  geom_line(aes(x = laplace, y = err)) + 
+  geom_hline(yintercept = 1-mean(bayes_test_pred!=as.factor(testset$Match)),linetype = 2, col="red") +
+   geom_hline(yintercept = logis_acc_base,linetype = 2, col="darkblue")+
+  scale_x_continuous(breaks = seq(0,100,by=10)) +
+  labs(title = "Tuning: Laplace parapmeter in Naive Bayes on Test Set",x = "Laplace",y = "Accuracy") + 
+  theme_bw()
 ```
 
 
+# Reference
+
+(1) Hadley Wickham (2011). The Split-Apply-Combine Strategy for Data Analysis. Journal of Statistical Software, 40(1), 1-29. URL http://www.jstatsoft.org/v40/i01/.
+
+(2) Hadley Wickham (2007). Reshaping Data with the reshape Package. Journal of Statistical Software, 21(12), 1-20. URL http://www.jstatsoft.org/v21/i12/.
+
+(3) Hadley Wickham (2020). tidyr: Tidy Messy Data. R package version 1.1.2. https://CRAN.R-project.org/package=tidyr
+
+(4) Simon Garnier (2018). viridis: Default Color Maps from 'matplotlib'. R package version 0.5.1. https://CRAN.R-project.org/package=viridis
+
+(5) Revelle, W. (2020) psych: Procedures for Personality and Psychological Research, Northwestern University, Evanston, Illinois, USA, https://CRAN.R-project.org/package=psych Version = 2.1.3,.
+
+(6) Goodrich B, Gabry J, Ali I & Brilleman S. (2020). rstanarm: Bayesian applied regression modeling via Stan. R package version 2.21.1 https://mc-stan.org/rstanarm.
+
+(7) Brilleman SL, Crowther MJ, Moreno-Betancur M, Buros Novik J & Wolfe R. Joint longitudinal and time-to-event models via Stan. StanCon 2018. 10-12 Jan 2018. Pacific Grove, CA, USA. https://github.com/stan-dev/stancon_talks/
+
+(8) Andrew Gelman and Yu-Sung Su (2020). arm: Data Analysis Using Regression and Multilevel/Hierarchical Models. R package version 1.11-2. https://CRAN.R-project.org/package=arm
+
+(9) A. Liaw and M. Wiener (2002). Classification and Regression by randomForest. R News 2(3), 18--22.
+
+(10) Max Kuhn (2020). caret: Classification and Regression Training. R package version 6.0-86. https://CRAN.R-project.org/package=caret
+
+(11) David Meyer, Evgenia Dimitriadou, Kurt Hornik, Andreas Weingessel and Friedrich Leisch (2020). e1071: Misc Functions of the Department of Statistics, Probability Theory Group (Formerly: E1071), TU Wien. R package version 1.7-4. https://CRAN.R-project.org/package=e1071
+
+(12) National Comprehensive Cancer Network. (2021). Available from https://www.nccn.org/
