@@ -698,7 +698,7 @@ ggplot(data = data.frame(laplace = laplace_value, err = 1-train_err_bye))+
 
 # Conclusion
 
-  In general, we can conclude that there exists bias in this data since we know that blacks are less likely to get incorrect therapy compared with other races from the result of the model. We can also see that patients with no insurance are less likely to take treatments. Besides, there are some subtle trends that patients with low educational level and patients who are unemployed are slightly tend to not follow the guideline of therapy.
+  In general, we can conclude that there exists bias in this data since we know that blacks are less likely to get correct therapy compared with other races from the result of the model. We can also see that patients with no insurance are less likely to take treatments. Besides, there are some subtle trends that patients with low educational level and patients who are unemployed are slightly tend to not follow the guideline of therapy.
 
 # Reference
 
